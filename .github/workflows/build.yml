@@ -1,0 +1,39 @@
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  build:
+    name: Build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Perform build
+        run: |
+          npm install --only=dev
+          npm run build
+      - name: Push built assets to a separate branch
+        env:
+          PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout -B release
+          mv dist docs
+          git add -f docs/
+          if git diff --staged --quiet; then
+            echo Everything is UP-TO-DATE
+          else
+            echo Pushing the new release
+            git fetch origin 'refs/tags/v*:refs/tags/v*'
+            if [[ $(git tag --points-at HEAD) ]] || [[ "$(git log --format=%B -n 1 origin/release)" != 'Publish release from'* ]]; then
+              AMEND=
+              FORCE=
+            else
+              AMEND=--amend
+              FORCE=--force
+            fi
+            git config user.email github-actions@github.com
+            git config user.name github-actions
+            git commit $AMEND -m "Publish release from $GITHUB_SHA"
+            git push $FORCE origin release
+          fi

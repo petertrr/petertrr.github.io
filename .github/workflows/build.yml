@@ -1,0 +1,37 @@
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: npm run build
+      - name: Push built assets to a separate branch
+        env:
+          PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin refs/heads/release:release
+          git checkout release
+          git add dist/
+          if git diff --staged --quiet; then
+            echo Everything is UP-TO-DATE
+          else
+            echo Pushing the new release
+            git fetch origin 'refs/tags/v*:refs/tags/v*'
+            if [[ $(git tag --points-at HEAD) ]] || [[ "$(git log --format=%B -n 1 origin/release)" != 'Publish release from'* ]]; then
+              AMEND=
+              FORCE=
+            else
+              AMEND=--amend
+              FORCE=--force
+            fi
+            git config --global user.email "noreply@github.com"
+            git config --global user.name "GitHub"
+            git commit $AMEND -m "Publish release from $GITHUB_SHA"
+            remote_repo="https://${GITHUB_ACTOR}:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git push $remote_repo $FORCE release
+          fi
+    
